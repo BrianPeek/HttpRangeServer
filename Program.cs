@@ -26,7 +26,9 @@
                 }
             }
 
-            Logger.Log("Starting up...");
+			if(!Directory.Exists(path))
+				throw new ArgumentException($"Path not found: {path}");
+
 			await _httpListenerProcessor.StartAsync(port, path);
 
 			// wait forever

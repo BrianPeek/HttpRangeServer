@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.IO.Compression;
+using System.Net;
 using System.Text.RegularExpressions;
 using System.Web;
 
@@ -14,7 +15,7 @@ namespace HttpRangeServer
 		{
 			try
 			{
-				Logger.Log("Starting HttpListenerProcessor...");
+				Logger.Log($"Starting HttpListenerProcessor, serving files from {path}...");
 
 				_basePath = path;
 
@@ -30,7 +31,7 @@ namespace HttpRangeServer
 					{
 						HttpListenerContext context = await _listener.GetContextAsync();
 						HttpListenerRequest request = context.Request;
-						Logger.Log($"Request received: {request.Url} from {request.RemoteEndPoint?.Address}");
+						Logger.Log($"Request received: {request.Url}");
 
 						await ProcessRequest(context, request);
 					}
@@ -52,43 +53,60 @@ namespace HttpRangeServer
 
 			string urlPath = HttpUtility.UrlDecode(request.Url?.AbsolutePath.TrimStart('/'));
 			string filePath = Path.Combine(_basePath, urlPath);
-			Logger.Log($"Reading file {filePath}");
-
-			if(!File.Exists(filePath))
-			{
-				context.Response.StatusCode = 404;
-				context.Response.Close();
-				return;
-			}
 
 			if(!_fileMap.ContainsKey(filePath))
 			{
-				_fileMap[filePath] = await File.ReadAllBytesAsync(filePath);
+				if(!File.Exists(filePath))
+					context.Response.StatusCode = 404;
+				else
+				{
+					if(urlPath.EndsWith("zip"))
+					{
+                        using(FileStream zipFile = File.OpenRead(filePath))
+						{
+							using(var zipArchive = new ZipArchive(zipFile, ZipArchiveMode.Read))
+							{
+								using(var ms = new MemoryStream())
+								{
+                                    Stream s = zipArchive.Entries[0].Open();
+									s.CopyTo(ms);
+									_fileMap[filePath] = ms.ToArray();;
+								}
+							}
+						}
+					}
+					else
+						_fileMap[filePath] = await File.ReadAllBytesAsync(filePath);
+				}
 			}
 
-			bytes = _fileMap[filePath];
-
-            string rangeHeader = request.Headers["Range"];
-			if(!string.IsNullOrEmpty(rangeHeader))
+			if(_fileMap.ContainsKey(filePath))
 			{
-                Match matches = Regex.Match(rangeHeader, @"^bytes=(\d*)-(\d*)*$", RegexOptions.Compiled);
+				bytes = _fileMap[filePath];
 
-				int start  = Convert.ToInt32(matches.Groups[1].Captures[0].Value);
-				int end    = Convert.ToInt32(matches.Groups[2].Captures[0].Value);
-				int length = end-start+1;
+				string rangeHeader = request.Headers["Range"];
+				if(!string.IsNullOrEmpty(rangeHeader))
+				{
+					Match matches = Regex.Match(rangeHeader, @"^bytes=(\d*)-(\d*)*$", RegexOptions.Compiled);
 
-				context.Response.StatusCode = 206;
-				context.Response.ContentLength64 = length;
-				string range = $"bytes {start}-{end}/{bytes.Length}";
-				context.Response.Headers.Add("Content-Range", range);
-				context.Response.OutputStream.Write(bytes, start, length);
+					int start  = Convert.ToInt32(matches.Groups[1].Captures[0].Value);
+					int end    = Convert.ToInt32(matches.Groups[2].Captures[0].Value);
+					int length = end-start+1;
+
+					context.Response.StatusCode = 206;
+					context.Response.ContentLength64 = length;
+					string range = $"bytes {start}-{end}/{bytes.Length}";
+					Logger.Log($"Returning {range}");
+					context.Response.Headers.Add("Content-Range", range);
+					context.Response.OutputStream.Write(bytes, start, length);
+				}
 			}
 			else
 			{
 				context.Response.StatusCode = 400;
-				context.Response.Close();
-
 			}
+
+			context.Response.Close();
         }
     }
 }

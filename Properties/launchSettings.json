@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "HttpRangeServer": {
+        "commandName": "Project",
+        "commandLineArgs": '--path \"\\\\storage\\software\\Apple IIgs\"'
+    }
+  }
+}
