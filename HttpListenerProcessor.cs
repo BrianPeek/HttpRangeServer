@@ -57,11 +57,15 @@ namespace HttpRangeServer
 			if(!_fileMap.ContainsKey(filePath))
 			{
 				if(!File.Exists(filePath))
+				{
+					Logger.Log($"{filePath} not found, returning 404");
 					context.Response.StatusCode = 404;
+				}
 				else
 				{
 					if(urlPath.EndsWith("zip"))
 					{
+						Logger.Log($"Serving first file in zip archive");
                         using(FileStream zipFile = File.OpenRead(filePath))
 						{
 							using(var zipArchive = new ZipArchive(zipFile, ZipArchiveMode.Read))
@@ -76,7 +80,10 @@ namespace HttpRangeServer
 						}
 					}
 					else
+					{
+						Logger.Log($"Reading and caching {filePath}");
 						_fileMap[filePath] = await File.ReadAllBytesAsync(filePath);
+					}
 				}
 			}
 
@@ -103,6 +110,7 @@ namespace HttpRangeServer
 			}
 			else
 			{
+				Logger.Log($"{filePath} not in map, returning 400");
 				context.Response.StatusCode = 400;
 			}
 
