@@ -10,20 +10,24 @@ namespace HttpRangeServer
 		private readonly HttpListener _listener = new();
 		private readonly Dictionary<string, byte[]> _fileMap = new();
 		private string _basePath;
+		private bool _useCache;
 
-		public async Task StartAsync(int port, string path)
+		public async Task StartAsync(int port, string path, bool useCache)
 		{
 			try
 			{
-				Logger.Log($"Starting HttpListenerProcessor, serving files from {path}...");
-
 				_basePath = path;
+				_useCache = useCache;
+
+				Logger.Log($"Starting HttpListenerProcessor");
+				Logger.Log($"  Base path: {_basePath}");
+				Logger.Log($"  Cache: {_useCache}");
+				Logger.Log($"  Port: {port}");
 
 				// netsh http add urlacl url=http://*:PORT/ user=Everyone
 				_listener.Prefixes.Add($"http://*:{port}/"); // listen on root
 
 				_listener.Start();
-				Logger.Log($"Listening on port {port}");
 
 				while(true)
 				{
@@ -49,30 +53,32 @@ namespace HttpRangeServer
 
         private async Task ProcessRequest(HttpListenerContext context, HttpListenerRequest request)
         {
-			byte[] bytes;
+			byte[] bytes = null;
 
 			string urlPath = HttpUtility.UrlDecode(request.Url?.AbsolutePath.TrimStart('/'));
 			string filePath = Path.Combine(_basePath, urlPath);
 
-			if(!_fileMap.ContainsKey(filePath))
+			if(!File.Exists(filePath))
 			{
-				if(!File.Exists(filePath))
-				{
-					Logger.Log($"{filePath} not found, returning 404");
-					context.Response.StatusCode = 404;
-				}
-				else
+				Logger.Log($"{filePath} not found, returning 404");
+				context.Response.StatusCode = 404;
+				return;
+			}
+
+			if(_useCache)
+			{
+				if(!_fileMap.ContainsKey(filePath))
 				{
 					if(urlPath.EndsWith("zip"))
 					{
 						Logger.Log($"Serving first file in zip archive");
-                        using(FileStream zipFile = File.OpenRead(filePath))
+						using(FileStream zipFile = File.OpenRead(filePath))
 						{
 							using(var zipArchive = new ZipArchive(zipFile, ZipArchiveMode.Read))
 							{
 								using(var ms = new MemoryStream())
 								{
-                                    Stream s = zipArchive.Entries[0].Open();
+									Stream s = zipArchive.Entries[0].Open();
 									s.CopyTo(ms);
 									_fileMap[filePath] = ms.ToArray();;
 								}
@@ -87,10 +93,17 @@ namespace HttpRangeServer
 				}
 			}
 
-			if(_fileMap.ContainsKey(filePath))
+			if(!_useCache)
+			{
+				bytes = File.ReadAllBytes(filePath);
+			}
+			else if(_fileMap.ContainsKey(filePath))
 			{
 				bytes = _fileMap[filePath];
+			}
 
+			if(bytes.Length > 0)
+			{
 				string rangeHeader = request.Headers["Range"];
 				if(!string.IsNullOrEmpty(rangeHeader))
 				{
