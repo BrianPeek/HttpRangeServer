@@ -28,8 +28,11 @@
 						i++;
 						break;
 
+					case "-?":
+					case "--help":
 					default:
-						throw new ArgumentException("Unknown argument");
+						Usage();
+						return;
                 }
             }
 
@@ -40,6 +43,18 @@
 
 			// wait forever
 			new CancellationToken().WaitHandle.WaitOne();
+		}
+
+		static void Usage()
+		{
+			Console.WriteLine("");
+			Console.WriteLine("Usage: HttpRangeServer [options...]");
+			Console.WriteLine("");
+			Console.WriteLine("Options:");
+			Console.WriteLine("  --path <path>  Path to directory of images");
+			Console.WriteLine("  --port <port   TCP port to listen on>");
+			Console.WriteLine("  --nocache      Do not cache chunks in memory");
+			Console.WriteLine("  --help");
 		}
 	}
 }
