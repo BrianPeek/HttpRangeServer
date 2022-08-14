@@ -51,9 +51,9 @@
 			Console.WriteLine("Usage: HttpRangeServer [options...]");
 			Console.WriteLine("");
 			Console.WriteLine("Options:");
-			Console.WriteLine("  --path <path>  Path to directory of images");
-			Console.WriteLine("  --port <port   TCP port to listen on>");
-			Console.WriteLine("  --nocache      Do not cache chunks in memory");
+			Console.WriteLine("  --path <path>  Path to directory of images   (default: current directory)");
+			Console.WriteLine("  --port <port   TCP port to listen on         (default: 1165)");
+			Console.WriteLine("  --nocache      Do not cache chunks in memory (default: caching enabled)");
 			Console.WriteLine("  --help");
 		}
 	}
