@@ -10,7 +10,7 @@ Build HttpRangeServer.sln with .NET 6.0.
 ## Options
 ```
   --path <path>  Path to directory of images   (default: current directory)
-  --port <port   TCP port to listen on         (default: 1165)
+  --port <port>  TCP port to listen on         (default: 1165)
   --nocache      Do not cache chunks in memory (default: caching enabled)
   --help
 ```
