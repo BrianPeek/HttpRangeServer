@@ -1,0 +1,96 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        configuration: [Debug, Release]
+
+    env:
+      PROJECT_FILE: src/HttpRangeServer.csproj
+      RUNTIME: win-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT_FILE }} -r ${{ env.RUNTIME }}
+
+      - name: Publish
+        run: dotnet publish ${{ env.PROJECT_FILE }} -c ${{ matrix.configuration }} -r ${{ env.RUNTIME }} --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --no-restore -o publish/${{ matrix.configuration }}
+
+      - name: Upload Debug artifacts
+        if: matrix.configuration == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: HttpRangeServer-Debug
+          path: |
+            publish/Debug/HttpRangeServer.exe
+            publish/Debug/HttpRangeServer.pdb
+          if-no-files-found: warn
+
+      - name: Upload Release artifacts
+        if: matrix.configuration == 'Release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: HttpRangeServer-Release
+          path: |
+            publish/Release/HttpRangeServer.exe
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: windows-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute build date
+        shell: pwsh
+        run: |
+          $stamp = (Get-Date -AsUTC).ToString("yyyyMMdd")
+          "BUILD_DATE=$stamp" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Download Release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: HttpRangeServer-Release
+          path: HttpRangeServer
+
+      - name: Package
+        shell: pwsh
+        run: |
+          Copy-Item README.md HttpRangeServer\
+          Copy-Item LICENSE HttpRangeServer\
+          $zip = "HttpRangeServer-x64-$env:BUILD_DATE.zip"
+          Compress-Archive -Path HttpRangeServer\* -DestinationPath $zip
+          "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ env.BUILD_DATE }}
+          name: Build ${{ env.BUILD_DATE }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+          files: ${{ env.ASSET }}
