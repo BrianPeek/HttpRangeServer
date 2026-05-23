@@ -21,10 +21,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -36,7 +36,7 @@ jobs:
 
       - name: Upload Debug artifacts
         if: matrix.configuration == 'Debug'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HttpRangeServer-Debug
           path: |
@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload Release artifacts
         if: matrix.configuration == 'Release'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: HttpRangeServer-Release
           path: |
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Compute build date
         shell: pwsh
@@ -72,7 +72,7 @@ jobs:
           "BUILD_DATE=$stamp" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Download Release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: HttpRangeServer-Release
           path: HttpRangeServer
@@ -87,7 +87,7 @@ jobs:
           "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: build-${{ env.BUILD_DATE }}
           name: Build ${{ env.BUILD_DATE }}
